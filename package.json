@@ -1,0 +1,21 @@
+{
+  "dependencies": {
+    "node-addon-api": "^8.3.0"
+  },
+  "name": "matrix",
+  "version": "1.0.0",
+  "description": "Bench your cpu with Matrix multiplication",
+  "main": "src/matrix.js",
+  "devDependencies": {},
+  "scripts": {
+    "test": "node . -t 1 -s 16",
+    "install": "node-gyp rebuild"
+  },
+  "keywords": [
+    "matrix",
+    "bench"
+  ],
+  "author": "Angga Firman",
+  "license": "MIT",
+  "gypfile": true
+}
