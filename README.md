@@ -24,7 +24,16 @@ node . -s 512
 
 # print output
 node . -p
+
+# save results to JSON file
+node . -o benchmark_results.json
 ```
+
+## features
+- Multi-threaded matrix multiplication, addition, subtraction, transpose, and inverse.
+- Sequential benchmark of all operations.
+- Save benchmark results to JSON for analysis.
+- High-performance C++ core using `node-addon-api`.
 
 ## output example
 ```ascii

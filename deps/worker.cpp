@@ -1,48 +1,106 @@
 #include <napi.h>
 #include <vector>
+#include <string>
+#include <cmath>
 
-std::vector<std::vector<int>> HandleMatrix(const std::vector<std::vector<int>>& a, const std::vector<std::vector<int>>& b, int s, int e, int l) {
-    std::vector<std::vector<int>> result(e - s, std::vector<int>(l));
+typedef std::vector<std::vector<double>> MatrixD;
 
-    for (int y = s; y < e; ++y) {
-        for (int x = 0; x < l; ++x) {
-            int sum = 0;
-            for (int i = 0; i < l; ++i) {
-                sum += a[y][i] * b[i][x];
+MatrixD Inverse(MatrixD m) {
+    int n = m.size();
+    MatrixD res(n, std::vector<double>(n, 0));
+    for (int i = 0; i < n; i++) res[i][i] = 1;
+
+    for (int i = 0; i < n; i++) {
+        double pivot = m[i][i];
+        if (std::abs(pivot) < 1e-9) continue; 
+        for (int j = 0; j < n; j++) {
+            m[i][j] /= pivot;
+            res[i][j] /= pivot;
+        }
+        for (int k = 0; k < n; k++) {
+            if (k != i) {
+                double factor = m[k][i];
+                for (int j = 0; j < n; j++) {
+                    m[k][j] -= factor * m[i][j];
+                    res[k][j] -= factor * res[i][j];
+                }
             }
-            result[y - s][x] = sum;
         }
     }
-
-    return result;
+    return res;
 }
 
 Napi::Array Handle(const Napi::CallbackInfo& info) {
     Napi::Env env = info.Env();
 
-    auto a = info[0].As<Napi::Array>();
-    auto b = info[1].As<Napi::Array>();
+    auto aArr = info[0].As<Napi::Array>();
+    auto bArr = info[1].As<Napi::Array>();
     int s = info[2].As<Napi::Number>().Int32Value();
     int e = info[3].As<Napi::Number>().Int32Value();
     int l = info[4].As<Napi::Number>().Int32Value();
-
-    std::vector<std::vector<int>> aVec(a.Length(), std::vector<int>(l));
-    std::vector<std::vector<int>> bVec(b.Length(), std::vector<int>(l));
-    for (size_t i = 0; i < a.Length(); i++) {
-        Napi::Array row = a.Get(i).As<Napi::Array>();
-        for (size_t j = 0; j < row.Length(); j++) {
-            aVec[i][j] = row.Get(j).As<Napi::Number>().Int32Value();
-        }
-    }
-    for (size_t i = 0; i < b.Length(); i++) {
-        Napi::Array row = b.Get(i).As<Napi::Array>();
-        for (size_t j = 0; j < row.Length(); j++) {
-            bVec[i][j] = row.Get(j).As<Napi::Number>().Int32Value();
-        }
+    std::string op = "mul";
+    if (info.Length() > 5) {
+        op = info[5].As<Napi::String>().Utf8Value();
     }
 
-    // Calculate
-    auto resultVec = HandleMatrix(aVec, bVec, s, e, l);
+    MatrixD aVec(aArr.Length(), std::vector<double>(l));
+    MatrixD bVec(bArr.Length(), std::vector<double>(l));
+
+    for (size_t i = 0; i < aArr.Length(); i++) {
+        Napi::Array row = aArr.Get(i).As<Napi::Array>();
+        for (size_t j = 0; j < row.Length(); j++) {
+            aVec[i][j] = row.Get(j).As<Napi::Number>().DoubleValue();
+        }
+    }
+    for (size_t i = 0; i < bArr.Length(); i++) {
+        Napi::Array row = bArr.Get(i).As<Napi::Array>();
+        for (size_t j = 0; j < row.Length(); j++) {
+            bVec[i][j] = row.Get(j).As<Napi::Number>().DoubleValue();
+        }
+    }
+
+    MatrixD resultVec;
+    if (op == "mul") {
+        resultVec.assign(e - s, std::vector<double>(l));
+        for (int y = s; y < e; ++y) {
+            for (int x = 0; x < l; ++x) {
+                double sum = 0;
+                for (int i = 0; i < l; ++i) {
+                    sum += aVec[y][i] * bVec[i][x];
+                }
+                resultVec[y - s][x] = sum;
+            }
+        }
+    } else if (op == "add") {
+        resultVec.assign(e - s, std::vector<double>(l));
+        for (int y = s; y < e; ++y) {
+            for (int x = 0; x < l; ++x) {
+                resultVec[y - s][x] = aVec[y][x] + bVec[y][x];
+            }
+        }
+    } else if (op == "sub") {
+        resultVec.assign(e - s, std::vector<double>(l));
+        for (int y = s; y < e; ++y) {
+            for (int x = 0; x < l; ++x) {
+                resultVec[y - s][x] = aVec[y][x] - bVec[y][x];
+            }
+        }
+    } else if (op == "trans") {
+        resultVec.assign(e - s, std::vector<double>(l));
+        for (int y = s; y < e; ++y) {
+            for (int x = 0; x < l; ++x) {
+                resultVec[y - s][x] = aVec[x][y];
+            }
+        }
+    } else if (op == "inv") {
+        MatrixD invA = Inverse(aVec);
+        resultVec.assign(e - s, std::vector<double>(l));
+        for (int y = s; y < e; ++y) {
+            for (int x = 0; x < l; ++x) {
+                resultVec[y - s][x] = invA[y][x];
+            }
+        }
+    }
 
     Napi::Array result = Napi::Array::New(env, resultVec.size());
     for (size_t i = 0; i < resultVec.size(); i++) {
@@ -56,10 +114,9 @@ Napi::Array Handle(const Napi::CallbackInfo& info) {
     return result;
 }
 
-// Export to JS
 Napi::Object Init(Napi::Env env, Napi::Object exports) {
     exports.Set(Napi::String::New(env, "handle"), Napi::Function::New(env, Handle));
     return exports;
 }
 
-NODE_API_MODULE(taik_kepet, Init)
+NODE_API_MODULE(handle, Init)
